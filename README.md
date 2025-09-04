@@ -14,8 +14,8 @@ Live Demo: https://url-shortener-470717.web.app/
 1. The user inputs a long URL in the frontend, which is first validated using JavaScript's built-in URL validator. 
 2. The long URL is combined with a timestamp to ensure uniqueness. 
 3. This string is then hashed and encoded using Base64 URL encoding. 
-4. The first 7 characters of the encoded string are used as the short URL key. 
-5. This key is used as the document ID in Firestore.
+4. The first 7 characters of the encoded string are used as the short URL token. 
+5. This token is used as the document ID in Firestore.
 
 **Note**: The same long URL can result in multiple different short URLs due to the added timestamp.
 
@@ -28,7 +28,7 @@ Each short URL is stored as a document in a Firestore collection, with the follo
         "original_url": "https://example.com/very-long-url"
     }
 
-The document ID is the short URL key itself, which simplifies lookup and redirection.
+The document ID is the short URL token itself, which simplifies lookup and redirection.
 
 ## Future Improvements
 - Add custom aliases (e.g., /my-link)
