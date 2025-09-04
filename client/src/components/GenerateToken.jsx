@@ -47,12 +47,16 @@ export default function GenerateToken() {
 
            if (testUrl.protocol !== "https:" && testUrl.protocol !== "http:") {
                setUrlError(true);
-               setUrlErrorMessage("Please enter valid URL. Example: https://www.example.com");
+               setUrlErrorMessage("Please enter valid URL. Example: https://example.com");
+               return false;
            }
+
+           setUrlError(false);
+           setUrlErrorMessage("");
            return true
        } catch (error) {
            setUrlError(true);
-           setUrlErrorMessage("Please enter valid URL. Example: https://www.example.com");
+           setUrlErrorMessage("Please enter valid URL. Example: https://example.com");
            return false;
        }
     }
@@ -123,7 +127,7 @@ export default function GenerateToken() {
                     <TextField id="link"
                                type="url"
                                name="link"
-                               placeholder="https://www.example.com"
+                               placeholder="https://example.com"
                                variant="outlined"
                                autoFocus
                                fullWidth
