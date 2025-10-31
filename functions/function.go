@@ -21,7 +21,8 @@ import (
 
 var firestoreClient *firestore.Client
 var loggingClient *logging.Client
-var logger *log.Logger
+var infologger *log.Logger
+var errorLogger *log.Logger
 var projectID = "url-shortener-470717"
 
 type longURL struct {
@@ -47,8 +48,9 @@ func init() {
 		log.Fatalf("Failed to create Logging client: %v", err)
 	}
 
-	// Initialise a logger
-	logger = loggingClient.Logger("url-shortener").StandardLogger(logging.Debug)
+	// Initialize loggers
+	infologger = loggingClient.Logger("url-shortener").StandardLogger(logging.Info)
+	errorLogger = loggingClient.Logger("url-shortener").StandardLogger(logging.Error)
 
 	functions.HTTP("UrlShortener", UrlShortener)
 }
@@ -112,7 +114,7 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 	// Decode the request body into the LongURL struct
 	err := json.NewDecoder(r.Body).Decode(&longURL)
 	if err != nil {
-		logger.Printf("Error decoding request body: %v", err)
+		errorLogger.Printf("Error decoding request body: %v", err)
 		http.Error(w, "Failed to decode request body", http.StatusBadRequest)
 		return
 	}
@@ -132,7 +134,7 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 				break
 			} else {
 				// Error while cheking if slug exixts
-				logger.Printf("Error checking for slug existance: %v", err)
+				errorLogger.Printf("Error checking for slug existance: %v", err)
 				http.Error(w, "Failed shortening url", http.StatusInternalServerError)
 				return
 			}
@@ -142,7 +144,7 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 		// Generate a new one and check again
 		slug = generateToken(longURL.URL)
 	}
-	logger.Printf("New token generated successfully: %s", slug)
+	infologger.Printf("New token generated successfully: %s", slug)
 
 	// Write into firestore if the generated slug does not exist
 	_, err = firestoreClient.Collection("shortener").Doc(slug).Set(context.Background(), map[string]interface{}{
@@ -151,11 +153,11 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 		"clicks":       0,
 	})
 	if err != nil {
-		logger.Printf("Error saving slug to Firestore: %v", err)
+		errorLogger.Printf("Error saving slug to Firestore: %v", err)
 		http.Error(w, "Failed shortening url", http.StatusInternalServerError)
 		return
 	}
-	logger.Printf("New token saved successfully: %s", slug)
+	infologger.Printf("New token saved successfully: %s", slug)
 
 	// Set the Content-Type header
 	w.Header().Set("Content-Type", "application/json")
@@ -167,7 +169,7 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 	resBody := token{Value: slug}
 	err = json.NewEncoder(w).Encode(resBody)
 	if err != nil {
-		logger.Printf("Error encoding response: %v", err)
+		errorLogger.Printf("Error encoding response: %v", err)
 		http.Error(w, "Failed to write response", http.StatusInternalServerError)
 	}
 }
@@ -181,11 +183,11 @@ func handleGetRequest(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			// Short URL does not exist
-			logger.Printf("Document not found in firestore: %v", err)
+			errorLogger.Printf("Document not found in firestore: %v", err)
 			http.Error(w, "Short URL not found", http.StatusNotFound)
 			return
 		} else {
-			logger.Printf("Error checking for slug existance: %v", err)
+			errorLogger.Printf("Error checking for slug existance: %v", err)
 			http.Error(w, "Failed shortening url", http.StatusInternalServerError)
 			return
 		}
@@ -195,10 +197,11 @@ func handleGetRequest(w http.ResponseWriter, r *http.Request) {
 	data := docSnap.Data()
 	url, ok := data["original_url"].(string)
 	if !ok {
+		errorLogger.Printf("Error retriving long URL for token: %v", token)
 		http.Error(w, "Corrupted data", http.StatusInternalServerError)
 		return
 	}
-	logger.Printf("long URL for token %s retrieved successfully", token)
+	infologger.Printf("long URL for token %s retrieved successfully", token)
 
 	// Increment the click count
 	document := firestoreClient.Collection("shortener").Doc(token)
@@ -206,10 +209,10 @@ func handleGetRequest(w http.ResponseWriter, r *http.Request) {
 		{Path: "clicks", Value: firestore.Increment(1)},
 	})
 	if err != nil {
-		logger.Printf("Error updating click count: %v", err)
+		errorLogger.Printf("Error updating click count: %v", err)
 		http.Error(w, "Something unexpected happen. Please try again later!", http.StatusInternalServerError)
 	}
-	logger.Printf("Clicks for token %s updated successfully", token)
+	infologger.Printf("Clicks for token %s updated successfully", token)
 
 	// Redirect the user to the long URL
 	http.Redirect(w, r, url, http.StatusFound)
